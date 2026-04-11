@@ -1,0 +1,20 @@
+{
+  "companies": [
+    {
+      "company_name": "NVIDIA Corporation",
+      "ticker": "NVDA",
+      "exchange": "NASDAQ",
+      "country": "US",
+      "sector": "Technology",
+      "industry": "Semiconductors"
+    },
+    {
+      "company_name": "Arista Networks, Inc.",
+      "ticker": "ANET",
+      "exchange": "NYSE",
+      "country": "US",
+      "sector": "Technology",
+      "industry": "Networking"
+    }
+  ]
+}

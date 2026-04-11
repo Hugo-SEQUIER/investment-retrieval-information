@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-equity-discovery"
+version = "0.1.0"
+description = "Modular AI equity discovery pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+ingestion = [
+    "praw>=7.7.0",
+    "twscrape>=0.17.0"
+]
+enrichment = [
+    "beautifulsoup4>=4.12.0",
+    "httpx>=0.27.0",
+    "trafilatura>=1.9.0"
+]
+api = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0"
+]
+
+[project.scripts]
+ai-equity-discovery = "ai_equity_discovery.cli:main"
+ai-equity-discovery-scheduler = "ai_equity_discovery.scheduler:main"
+ai-equity-api = "ai_equity_discovery.api.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

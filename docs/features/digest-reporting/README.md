@@ -1,7 +1,7 @@
 # Digest Reporting - Overview
 
 ## Quick Reference
-- **Key files**: `src/reporting/daily_report.py`, `src/reporting/markdown_renderer.py`, `src/reporting/telegram_digest.py`
+- **Key files**: `src/ai_equity_discovery/reporting/markdown.py`, `src/ai_equity_discovery/pipeline/daily.py`, `src/ai_equity_discovery/cli.py`
 - **Dependencies**: `jinja2` (optional), `python-telegram-bot` (optional)
 - **Patterns**: concise ranked output, citation-ready notes, stable section ordering
 
@@ -29,4 +29,4 @@ Turn ranked enriched candidates into a daily markdown report and optional Telegr
 - [ ] Add snapshot tests for report formatting stability.
 
 ---
-*Last update: 2026-04-11 - Initial feature documentation scaffold.*
+*Last update: 2026-04-12 - Added concrete reporting and pipeline module paths.*

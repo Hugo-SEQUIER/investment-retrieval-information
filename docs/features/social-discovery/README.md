@@ -1,7 +1,7 @@
 # Social Discovery - Overview
 
 ## Quick Reference
-- **Key files**: `src/ingestion/x_sources.py`, `src/ingestion/reddit_sources.py`, `src/ingestion/collect.py`
+- **Key files**: `src/ai_equity_discovery/ingestion/providers.py`, `src/ai_equity_discovery/ingestion/service.py`, `src/ai_equity_discovery/cli.py`
 - **Dependencies**: `twscrape`, `praw` or `asyncpraw`
 - **Patterns**: curated source ingestion, idempotent daily collection, raw post normalization
 
@@ -11,14 +11,19 @@ Collect posts from curated X accounts and selected Reddit communities. Normalize
 ## Key Components
 | Component | Purpose |
 |-----------|---------|
-| X collector | Pulls recent posts from curated X accounts |
-| Reddit collector | Pulls recent posts/comments from selected subreddits |
+| Twitter subagent | Pulls recent posts from curated X accounts |
+| Reddit subagent | Pulls recent posts/comments from selected subreddits |
 | Normalizer | Converts source-specific payloads into a common raw format |
+
+## Boundaries
+- Discovery subagents (Twitter, Reddit) only collect and normalize social signals.
+- Web research runs in enrichment, not in discovery.
 
 ## Conventions
 - Preserve original post text and source link for traceability.
 - Store ingestion timestamps in UTC.
 - Keep source allowlists explicit and versioned.
+- Persist per-source ingestion health per run (success, post count, latency, error).
 
 ## Gotchas
 - API/rate limits vary by source and account state.
@@ -29,4 +34,4 @@ Collect posts from curated X accounts and selected Reddit communities. Normalize
 - [ ] Add robust retry and backoff policy.
 
 ---
-*Last update: 2026-04-11 - Initial feature documentation scaffold.*
+*Last update: 2026-04-12 - Added explicit Twitter/Reddit discovery subagent boundaries.*

@@ -12,6 +12,7 @@
 | Company enrichment | `docs/features/company-enrichment/README.md` | active |
 | Ranking and scoring | `docs/features/ranking-scoring/README.md` | active |
 | Digest reporting | `docs/features/digest-reporting/README.md` | active |
+| Frontend terminal monitor | `docs/features/frontend-terminal-monitor/README.md` | active |
 
 ## Maintenance
 - Last reviewed: 2026-04-11

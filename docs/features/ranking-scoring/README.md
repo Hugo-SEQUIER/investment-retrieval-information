@@ -1,7 +1,7 @@
 # Ranking and Scoring - Overview
 
 ## Quick Reference
-- **Key files**: `src/ranking/signals.py`, `src/ranking/score.py`, `src/ranking/rank.py`
+- **Key files**: `src/ai_equity_discovery/ranking/service.py`, `src/ai_equity_discovery/core/models.py`
 - **Dependencies**: `langchain`, `sqlite3`
 - **Patterns**: weighted signal scoring, thresholding, explainable ranking notes
 
@@ -29,4 +29,4 @@ Aggregate discovery and enrichment signals into a final score per company. Rank 
 - [ ] Add daily stability checks for rank drift.
 
 ---
-*Last update: 2026-04-11 - Initial feature documentation scaffold.*
+*Last update: 2026-04-12 - Added concrete ranking module paths.*

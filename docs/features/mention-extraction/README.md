@@ -1,7 +1,7 @@
 # Mention Extraction - Overview
 
 ## Quick Reference
-- **Key files**: `src/extraction/ticker_parser.py`, `src/extraction/company_parser.py`, `src/extraction/theme_classifier.py`
+- **Key files**: `src/ai_equity_discovery/extraction/service.py`, `src/ai_equity_discovery/core/models.py`
 - **Dependencies**: `re`, `langchain`
 - **Patterns**: deterministic parsing first, LLM-assisted fallback, confidence scoring
 
@@ -29,4 +29,4 @@ Process normalized social posts to identify tickers, company names, and AI-relat
 - [ ] Add benchmark set for precision/recall tracking.
 
 ---
-*Last update: 2026-04-11 - Initial feature documentation scaffold.*
+*Last update: 2026-04-12 - Added concrete extraction module paths.*

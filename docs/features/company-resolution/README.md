@@ -1,7 +1,7 @@
 # Company Resolution - Overview
 
 ## Quick Reference
-- **Key files**: `src/resolution/entity_matcher.py`, `src/resolution/ticker_registry.py`, `src/resolution/resolve.py`
+- **Key files**: `src/ai_equity_discovery/resolution/registry.py`, `src/ai_equity_discovery/resolution/service.py`
 - **Dependencies**: `sqlite3`, `httpx`
 - **Patterns**: canonical entity mapping, alias matching, confidence thresholds
 
@@ -17,6 +17,7 @@ Resolve extracted mentions into canonical public companies using ticker registri
 
 ## Conventions
 - Include exchange and country in canonical entity keys.
+- Canonical ID format is `exchange:ticker`.
 - Keep unresolved mentions for later review, do not silently drop.
 - Log reason codes for low-confidence mappings.
 
@@ -25,8 +26,7 @@ Resolve extracted mentions into canonical public companies using ticker registri
 - ADR/local listings can create duplicate ticker confusion.
 
 ## TODOs / Tech Debt
-- [ ] Define canonical ID format for resolved entities.
 - [ ] Add unresolved queue reporting in daily digest appendix.
 
 ---
-*Last update: 2026-04-11 - Initial feature documentation scaffold.*
+*Last update: 2026-04-12 - Canonical ID format locked to exchange:ticker (DEC-004).*

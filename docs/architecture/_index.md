@@ -12,6 +12,7 @@
 | Enrichment layer | Companies -> factual profile in USD | `docs/features/company-enrichment/README.md` | Uses web research sources |
 | Ranking layer | Enriched candidates -> ranked shortlist | `docs/features/ranking-scoring/README.md` | Multi-signal scoring |
 | Reporting layer | Ranked shortlist -> daily digest | `docs/features/digest-reporting/README.md` | Markdown and Telegram-ready output |
+| API and monitor layer | Pipeline run control + run observability UI | `docs/features/frontend-terminal-monitor/README.md` | FastAPI backend + Next.js terminal frontend |
 
 ## Cross-Cutting
 - Decisions: `docs/decision-index.md`

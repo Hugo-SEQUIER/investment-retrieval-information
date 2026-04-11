@@ -1,0 +1,26 @@
+{
+  "facts": [
+    {
+      "canonical_id": "NASDAQ:NVDA",
+      "business_description": "Designs GPUs and AI computing platforms.",
+      "market_cap": 2100000000000,
+      "market_cap_currency": "USD",
+      "revenue": 130000000000,
+      "revenue_currency": "USD",
+      "source_urls": [
+        "https://investor.nvidia.com"
+      ]
+    },
+    {
+      "canonical_id": "NYSE:ANET",
+      "business_description": "Provides high-performance networking for data centers.",
+      "market_cap": 95000000000,
+      "market_cap_currency": "USD",
+      "revenue": 6000000000,
+      "revenue_currency": "USD",
+      "source_urls": [
+        "https://investors.arista.com"
+      ]
+    }
+  ]
+}
