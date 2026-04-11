@@ -8,12 +8,14 @@ version = "0.1.0"
 description = "Modular AI equity discovery pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "python-dotenv>=1.0.1"
+]
 
 [project.optional-dependencies]
 ingestion = [
     "praw>=7.7.0",
-    "twscrape>=0.17.0"
+    "Scweet>=5.0.0"
 ]
 enrichment = [
     "beautifulsoup4>=4.12.0",

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ai_equity_discovery.api.routes.config import router as config_router
 from ai_equity_discovery.api.routes.runs import router as runs_router
 from ai_equity_discovery.core.database import SQLiteStore
+from ai_equity_discovery.core.env import load_env
 
 
 def database_path() -> Path:
@@ -16,6 +17,7 @@ def database_path() -> Path:
 
 
 def create_app() -> FastAPI:
+    load_env()
     app = FastAPI(title="AI Equity Discovery API", version="0.1.0")
     app.state.store = SQLiteStore(database_path())
 

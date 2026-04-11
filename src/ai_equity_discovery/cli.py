@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ai_equity_discovery.core.config import AppConfig
 from ai_equity_discovery.core.database import SQLiteStore
+from ai_equity_discovery.core.env import load_env
 from ai_equity_discovery.core.loaders import (
     load_company_registry,
     load_enrichment_facts,
@@ -21,7 +22,7 @@ from ai_equity_discovery.enrichment.service import (
 )
 from ai_equity_discovery.enrichment.web_provider import WebResearchEnrichmentProvider
 from ai_equity_discovery.extraction.service import ExtractionService
-from ai_equity_discovery.ingestion.providers import RedditAdapter, TwscrapeAdapter
+from ai_equity_discovery.ingestion.providers import RedditAdapter, ScweetAdapter
 from ai_equity_discovery.ingestion.service import IngestionService
 from ai_equity_discovery.pipeline.daily import DailyPipeline
 from ai_equity_discovery.ranking.service import RankingService
@@ -78,6 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    load_env()
     args = parse_args()
 
     source_cfg = load_source_config(args.sources)
@@ -94,7 +96,7 @@ def main() -> int:
 
     ingestion_service = IngestionService(
         adapters=[
-            TwscrapeAdapter(accounts=source_cfg.x_accounts),
+            ScweetAdapter(accounts=source_cfg.x_accounts),
             RedditAdapter(subreddits=source_cfg.reddit_subreddits),
         ]
     )

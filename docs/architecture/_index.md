@@ -6,7 +6,7 @@
 ## Components
 | Component | Boundary | Primary Doc | Notes |
 |---|---|---|---|
-| Ingestion layer | External sources -> normalized raw posts | `docs/features/social-discovery/README.md` | Uses twscrape and PRAW |
+| Ingestion layer | External sources -> normalized raw posts | `docs/features/social-discovery/README.md` | Uses Scweet and PRAW |
 | Extraction layer | Raw posts -> entities and themes | `docs/features/mention-extraction/README.md` | Tickers, company names, AI themes |
 | Resolution layer | Mentions -> canonical public companies | `docs/features/company-resolution/README.md` | Dedup and confidence scoring |
 | Enrichment layer | Companies -> factual profile in USD | `docs/features/company-enrichment/README.md` | Uses web research sources |

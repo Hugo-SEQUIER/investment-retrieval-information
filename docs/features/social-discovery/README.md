@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **Key files**: `src/ai_equity_discovery/ingestion/providers.py`, `src/ai_equity_discovery/ingestion/service.py`, `src/ai_equity_discovery/cli.py`
-- **Dependencies**: `twscrape`, `praw` or `asyncpraw`
+- **Dependencies**: `Scweet`, `praw` or `asyncpraw`
 - **Patterns**: curated source ingestion, idempotent daily collection, raw post normalization
 
 ## Architecture

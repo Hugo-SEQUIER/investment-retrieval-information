@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from os import getenv
 from typing import Any
@@ -20,7 +19,7 @@ class InMemorySourceAdapter(SourceAdapter):
         return [post for post in self._posts if post.published_at_utc >= since_utc]
 
 
-class TwscrapeAdapter(SourceAdapter):
+class ScweetAdapter(SourceAdapter):
     source_name = "x"
 
     def __init__(self, accounts: list[str], limit_per_account: int = 20) -> None:
@@ -29,69 +28,131 @@ class TwscrapeAdapter(SourceAdapter):
         ]
         self._limit_per_account = limit_per_account
 
-    def _run_async(self, coro: Any) -> Any:
+    def _parse_datetime(self, value: Any) -> datetime | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
         try:
-            return asyncio.run(coro)
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
+            parsed = datetime.fromisoformat(text)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+
+    def _as_records(self, payload: Any) -> list[dict[str, Any]]:
+        if payload is None:
+            return []
+
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+
+        if isinstance(payload, dict):
+            if "tweets" in payload and isinstance(payload["tweets"], list):
+                return [item for item in payload["tweets"] if isinstance(item, dict)]
+            return [payload]
+
+        to_dict = getattr(payload, "to_dict", None)
+        if callable(to_dict):
             try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
+                records = to_dict("records")
+            except TypeError:
+                records = to_dict()
+            if isinstance(records, list):
+                return [item for item in records if isinstance(item, dict)]
+            if isinstance(records, dict):
+                return [records]
+
+        return []
 
     def fetch_posts(self, since_utc: datetime | None = None) -> list[RawPost]:
         if not self._accounts:
             return []
 
+        auth_token = getenv("TWITTER_AUTH_TOKEN") or getenv("SCWEET_AUTH_TOKEN")
+        if not auth_token:
+            raise RuntimeError(
+                "Missing X auth token. Set TWITTER_AUTH_TOKEN (or SCWEET_AUTH_TOKEN) in .env"
+            )
+
         try:
-            from twscrape import API
+            from Scweet import Scweet as ScweetClient
         except ImportError as exc:
-            raise RuntimeError("twscrape is not installed") from exc
+            raise RuntimeError("Scweet is not installed") from exc
 
-        async def _collect() -> list[RawPost]:
-            api = API()
-            posts: list[RawPost] = []
-            for account in self._accounts:
-                async for tweet in api.user_tweets(
-                    account, limit=self._limit_per_account
-                ):
-                    tweet_dt = getattr(tweet, "date", None)
-                    if tweet_dt is None:
-                        continue
-                    if since_utc is not None and tweet_dt < since_utc:
-                        continue
+        db_path = getenv("SCWEET_DB_PATH", "scweet_state.db")
+        client = ScweetClient(auth_token=auth_token, db_path=db_path)
 
-                    tweet_id = str(getattr(tweet, "id", ""))
-                    if not tweet_id:
-                        continue
+        posts: list[RawPost] = []
+        for account in self._accounts:
+            payload = client.get_profile_tweets(
+                [account], limit=self._limit_per_account
+            )
+            for record in self._as_records(payload):
+                tweet_id = (
+                    record.get("tweet_id") or record.get("id") or record.get("rest_id")
+                )
+                if not tweet_id:
+                    continue
 
-                    tweet_user = getattr(tweet, "user", None)
-                    username = (
-                        getattr(tweet_user, "username", None)
-                        or getattr(tweet_user, "displayname", None)
-                        or account
+                published_at = self._parse_datetime(
+                    record.get("created_at")
+                    or record.get("createdAt")
+                    or record.get("date")
+                    or record.get("timestamp")
+                )
+                if published_at is None:
+                    continue
+                if since_utc is not None and published_at < since_utc:
+                    continue
+
+                username = (
+                    record.get("username")
+                    or record.get("screen_name")
+                    or record.get("user")
+                    or account
+                )
+                text = (
+                    record.get("full_text")
+                    or record.get("text")
+                    or record.get("rawContent")
+                    or ""
+                )
+
+                url = record.get("url") or record.get("permalink")
+                if not url:
+                    url = f"https://x.com/{username}/status/{tweet_id}"
+
+                posts.append(
+                    RawPost(
+                        post_id=f"x:{tweet_id}",
+                        source=f"x:{account}",
+                        source_type="x",
+                        author=str(username),
+                        url=str(url),
+                        text=str(text),
+                        published_at_utc=published_at,
+                        ingested_at_utc=utc_now(),
+                        engagement={
+                            "likes": int(record.get("likes", 0) or 0),
+                            "retweets": int(record.get("retweets", 0) or 0),
+                            "replies": int(record.get("replies", 0) or 0),
+                        },
                     )
+                )
 
-                    posts.append(
-                        RawPost(
-                            post_id=f"x:{tweet_id}",
-                            source=f"x:{account}",
-                            source_type="x",
-                            author=str(username),
-                            url=f"https://x.com/{account}/status/{tweet_id}",
-                            text=str(getattr(tweet, "rawContent", "") or ""),
-                            published_at_utc=tweet_dt,
-                            ingested_at_utc=utc_now(),
-                            engagement={
-                                "likes": int(getattr(tweet, "likeCount", 0) or 0),
-                                "retweets": int(getattr(tweet, "retweetCount", 0) or 0),
-                                "replies": int(getattr(tweet, "replyCount", 0) or 0),
-                            },
-                        )
-                    )
-            return posts
+        return posts
 
-        return self._run_async(_collect())
+
+class TwscrapeAdapter(ScweetAdapter):
+    """Backward-compatibility alias; now uses Scweet backend."""
 
 
 class RedditAdapter(SourceAdapter):
