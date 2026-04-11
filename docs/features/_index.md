@@ -13,7 +13,10 @@
 | Ranking and scoring | `docs/features/ranking-scoring/README.md` | active |
 | Digest reporting | `docs/features/digest-reporting/README.md` | active |
 | Frontend terminal monitor | `docs/features/frontend-terminal-monitor/README.md` | active |
+| API run control | `docs/features/api-run-control/README.md` | active |
+| Daily pipeline | `docs/features/daily-pipeline/README.md` | active |
+| Persistence run state | `docs/features/persistence-run-state/README.md` | active |
 
 ## Maintenance
-- Last reviewed: 2026-04-11
+- Last reviewed: 2026-04-12
 - Update trigger: feature scope or ownership changes

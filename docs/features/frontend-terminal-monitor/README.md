@@ -1,12 +1,15 @@
 # Frontend Terminal Monitor - Overview
 
 ## Quick Reference
-- **Key files**: `frontend/app/page.tsx`, `frontend/components/*`, `src/ai_equity_discovery/api/routes/*.py`
+- **Key files**: `frontend/app/page.tsx`, `frontend/components/*`, `frontend/lib/api.ts`, `frontend/lib/types.ts`
 - **Dependencies**: Next.js, TypeScript, Tailwind CSS, shadcn/ui, FastAPI
 - **Patterns**: polling-driven run monitor, markdown-first output, guarded source config edits
 
 ## Purpose
 Provide an operator-style terminal dashboard to observe pipeline runs, inspect stage workflow and source health, view generated markdown, and manage discovery inputs.
+
+## Related Backend Feature
+- Run/API behavior is documented in `docs/features/api-run-control/README.md`.
 
 ## Boundaries
 - UI never executes trades or broker actions.
@@ -28,4 +31,4 @@ Provide an operator-style terminal dashboard to observe pipeline runs, inspect s
 - [ ] Add auth for config-edit and run-trigger actions.
 
 ---
-*Last update: 2026-04-12 - Initial v1.1 frontend terminal monitor spec.*
+*Last update: 2026-04-12 - Scoped monitor doc to frontend UI and linked API feature doc.*

@@ -1,246 +1,131 @@
 # AI Equity Discovery Agent
 
-An AI-native research pipeline that scans **X/Twitter** and **Reddit** every day to discover interesting **AI-related public companies**, then enriches those ideas with factual company research such as:
+Daily research pipeline for **AI-related public equities**.
 
-- what the company does
-- market cap **in USD**
-- revenue **in USD**
-- exchange / country
-- sector / industry
-- why the stock may be trending
+It discovers candidates from **X/Twitter** and **Reddit**, resolves companies, enriches facts from reputable sources, normalizes financials to **USD**, ranks ideas, and outputs a markdown digest.
 
-This project is built as a **LangChain / Deep Agents** system for **discovery and research**, not for trade execution.
+## Scope and Guardrails
 
----
+- Discovery and research only (no trading or execution).
+- Social media is discovery input, not factual truth.
+- Company facts are verified from reputable public sources.
+- User-facing market cap and revenue are always normalized to USD.
+- Pipeline stages stay strictly separated:
+  `discovery -> extraction -> resolution -> enrichment -> ranking -> reporting`.
 
-## Goal
+## Current Status
 
-The goal of this project is to build a daily agent that can:
+- v1 pipeline and storage are implemented in Python.
+- v1.1 includes FastAPI run-monitoring endpoints and a Next.js terminal-style frontend.
+- Markdown is the canonical report output.
 
-1. read curated social sources on **X** and **Reddit**
-2. identify public companies and tickers being discussed
-3. focus on names relevant to the **AI ecosystem**
-4. research each company on the open internet
-5. rank the best ideas
-6. generate a concise daily report / Telegram digest
+## Quick Start (Pipeline)
 
-This is meant to help surface **new stocks, new narratives, and new names to research**.
+1) Install Python dependencies:
 
----
+```bash
+python -m pip install -e .
+python -m pip install ".[api]"
+```
 
-## Investment Focus
+2) (Optional) install ingestion dependencies for live X/Reddit collection:
 
-This is **not** a general stock screener.
+```bash
+python -m pip install ".[ingestion]"
+```
 
-The agent focuses primarily on **AI-related equities**, broadly defined across the AI value chain, including:
+3) Configure credentials when using live ingestion:
 
-- hyperscalers / cloud platforms
-- semiconductors
-- AI accelerators / GPUs / custom chips
-- memory and storage
-- networking / interconnect
-- optics / photonics
-- datacenter infrastructure
-- power / cooling
-- energy linked to datacenter expansion
-- foundries, packaging, and supporting industrial supply chains
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `REDDIT_USER_AGENT` (optional)
 
-Examples of themes the agent should pick up:
+4) Run daily pipeline:
 
-- hyperscaler capex
-- GPU demand
-- optical interconnect
-- datacenter buildout
-- energy demand from AI
-- semiconductor bottlenecks
-- advanced packaging
-- memory upcycles
+```bash
+$env:PYTHONPATH="src"; python -m ai_equity_discovery --db data/discovery.sqlite --output reports/daily.md
+```
 
----
+The command writes:
+- stage artifacts in SQLite
+- source health per run
+- markdown report output file
 
-## What the Agent Does
+## Start API (v1.1)
 
-### 1. Social discovery
-The agent scans curated sources from:
+```bash
+$env:PYTHONPATH="src"; python -m uvicorn ai_equity_discovery.api.app:app --host 0.0.0.0 --port 8000
+```
 
-- **X / Twitter**
-- **Reddit**
+## Start Frontend (v1.1)
 
-It looks for:
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-- stock tickers
-- company names
-- repeated mentions
-- unusual spikes in discussion
-- new companies not seen before
-- AI-related narratives and themes
+Environment variable for frontend:
 
-### 2. Company enrichment
-For each candidate company, the agent researches:
+- `NEXT_PUBLIC_API_BASE_URL` (default: `http://localhost:8000`)
 
-- official company identity
-- what the company does
-- market cap
-- revenue
-- country / exchange
-- sector / industry
-- why it matters to the AI ecosystem
+## API Endpoints (v1.1)
 
-### 3. Ranking and reporting
-The agent ranks names based on:
+- `POST /api/runs` - start run (single active-run policy)
+- `GET /api/runs` - list recent runs
+- `GET /api/runs/{run_id}` - run summary
+- `GET /api/runs/{run_id}/stages` - stage status timeline
+- `GET /api/runs/{run_id}/source-health` - per-source health
+- `GET /api/runs/{run_id}/report` - markdown report
+- `GET /api/config/sources` - read source config
+- `PUT /api/config/sources` - update source config (applies to future runs)
 
-- mention frequency
-- source quality
-- novelty
-- cross-source confirmation
-- AI relevance
-- company-resolution confidence
-
-Then it outputs a clean daily digest.
-
----
-
-## What This Project Is Not
-
-This project is **not**:
-
-- a live trading bot
-- a broker execution engine
-- a portfolio manager
-- a financial advisor
-- a sentiment-only hype tracker
-
-Social media is used for **discovery**, not as a source of truth.
-
-All company facts should be verified through reputable public sources.
-
----
-
-## Tech Stack
-
-### Agent framework
-- **LangChain**
-- **LangGraph / Deep Agents**
-
-Reason:
-- good orchestration for multi-step workflows
-- tool calling
-- structured outputs
-- agent + subagent style pipelines
-- easier separation between discovery, enrichment, ranking, and reporting
-
-### X / Twitter ingestion
-- **twscrape**
-
-Reason:
-- practical open-source option for reading curated X accounts
-- suitable for prototype / discovery workflows
-- useful for extracting posts, timelines, and social signals
-
-### Reddit ingestion
-- **PRAW** or **asyncpraw**
-
-Reason:
-- official Reddit API access
-- stable for subreddit-based ingestion
-- better than fragile scraping for Reddit
-
-### Web research / enrichment
-- **httpx**
-- **BeautifulSoup**
-- **trafilatura** (for clean article/page extraction)
-- optional search provider integration later if needed
-
-### Data / storage
-- **SQLite** for local persistence in v1
-- possible upgrade later to **Postgres**
-
-### Output
-- daily markdown report
-- terminal summary
-- optional Telegram digest
-
----
-
-## Planned Data Sources
-
-### Social sources
-The system starts from curated discovery inputs such as:
-
-#### X / Twitter
-Seed accounts like:
-- `@jukan05`
-- `@zephyr_z9`
-- `@aleabitoreddit`
-
-and more accounts discovered over time.
-
-#### Reddit
-Selected subreddits related to:
-- stocks
-- investing
-- semiconductors
-- AI
-- datacenters
-- energy / infrastructure
-- growth / tech discussions
-
-### Company research sources
-The enrichment layer should prioritize:
-
-- official company websites
-- investor relations pages
-- exchange listings
-- reputable financial data pages
-- reputable business news / reference sources
-
----
-
-## Core Output Fields
-
-For each company surfaced by the agent, the report should aim to include:
-
-- company name
-- ticker
-- exchange
-- country
-- sector / industry
-- short business description
-- market cap **in USD**
-- revenue **in USD**
-- why it is relevant to the AI ecosystem
-- why it appears to be trending
-- confidence / caveat notes
-
-### Currency rule
-All key financial values shown to the user should be normalized to **USD**.
-
-That includes:
-- market cap
-- revenue
-
----
-
-## Example Daily Output
+## Project Structure
 
 ```text
-AI EQUITY DISCOVERY — 2026-04-11
+src/ai_equity_discovery/
+  core/            # config, models, serialization, sqlite storage
+  ingestion/       # X/Reddit adapters + parallel discovery collection
+  extraction/      # ticker/theme extraction
+  resolution/      # exchange:ticker company resolution
+  enrichment/      # facts providers, reliability policy, USD normalization
+  ranking/         # deterministic scoring and ranking
+  reporting/       # markdown report rendering
+  pipeline/        # daily orchestration with stage instrumentation
+  api/             # FastAPI routes, schemas, run launcher, config service
+  cli.py           # pipeline entrypoint
+
+frontend/
+  app/page.tsx     # terminal-style monitor UI
+  components/      # workflow/source health/markdown/config panels
+  lib/api.ts       # backend client
+
+docs/
+  feature-map.md
+  architecture/_index.md
+  features/*
+```
+
+## LangChain Agents: What Are We Using?
+
+Short answer: **no runtime LangChain agent graph is wired yet** in the current codebase.
+
+Today, orchestration is deterministic Python stage services (pipeline-first). The LangChain/LangGraph direction is still architectural intent for deeper agent-style orchestration later.
+
+Planned mapping when we introduce LangGraph:
+
+- Discovery subagents: X and Reddit collectors
+- Resolution/enrichment nodes: tool-driven factual verification
+- Ranking/reporting nodes: deterministic scoring + digest synthesis
+
+## Example Output
+
+```text
+AI EQUITY DISCOVERY - 2026-04-11
 
 Top names:
-1. Company A (TICKER)
-   - Makes optical interconnect components for AI datacenters
-   - Market cap: $8.2B
-   - Revenue: $1.4B
-   - Mentioned across X and Reddit
-   - Trending due to AI network / optics narrative
-
-2. Company B (TICKER)
-   - Supplies power infrastructure to hyperscalers
-   - Market cap: $15.7B
-   - Revenue: $4.8B
-   - Rising discussion tied to datacenter power demand
-
-Themes:
-- optical / photonics
-- datacenter energy
-- advanced packaging
+1. NVIDIA Corporation (NVDA)
+   - Designs GPUs and AI computing platforms.
+   - Market cap: $2.1T
+   - Revenue: $130.0B
+```
