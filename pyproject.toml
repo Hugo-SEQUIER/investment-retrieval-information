@@ -17,20 +17,10 @@ ingestion = [
     "praw>=7.7.0",
     "Scweet>=5.0.0"
 ]
-enrichment = [
-    "beautifulsoup4>=4.12.0",
-    "httpx>=0.27.0",
-    "trafilatura>=1.9.0"
-]
-api = [
-    "fastapi>=0.115.0",
-    "uvicorn>=0.30.0"
-]
 
 [project.scripts]
 ai-equity-discovery = "ai_equity_discovery.cli:main"
 ai-equity-discovery-scheduler = "ai_equity_discovery.scheduler:main"
-ai-equity-api = "ai_equity_discovery.api.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

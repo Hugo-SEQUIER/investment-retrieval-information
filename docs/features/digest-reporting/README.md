@@ -3,10 +3,12 @@
 ## Quick Reference
 - **Key files**: `src/ai_equity_discovery/reporting/markdown.py`, `src/ai_equity_discovery/pipeline/daily.py`, `src/ai_equity_discovery/cli.py`
 - **Dependencies**: `jinja2` (optional), `python-telegram-bot` (optional)
-- **Patterns**: concise ranked output, citation-ready notes, stable section ordering
+- **Patterns**: concise non-ranked output, citation-ready notes, stable section ordering
 
 ## Architecture
-Turn ranked enriched candidates into a daily markdown report and optional Telegram digest. Ensure each top name includes business context, USD metrics, AI relevance, and trend rationale.
+Turn analyzed items into a concise daily markdown report and optional Telegram
+digest. Focus on high-signal claims, ticker/theme summaries, and concrete
+follow-up questions.
 
 ## Key Components
 | Component | Purpose |
@@ -16,17 +18,18 @@ Turn ranked enriched candidates into a daily markdown report and optional Telegr
 | Telegram formatter | Produces concise digest-safe output |
 
 ## Conventions
-- Keep top names section concise and comparable day to day.
-- Include confidence/caveat notes for weakly resolved names.
+- Keep report sections concise and comparable day to day.
+- Keep each analyzed item short: claim, source context, and follow-up.
 - Preserve generated report date in UTC.
+- Avoid ranking language (no top-N ordering in the canonical report).
 
 ## Gotchas
 - Message length limits require compact Telegram formatting.
-- Missing enrichment fields should degrade gracefully, not fail report generation.
+- Over-analysis can make reports noisy; enforce compact section caps.
 
 ## TODOs / Tech Debt
 - [ ] Finalize output schema for terminal + markdown + Telegram.
 - [ ] Add snapshot tests for report formatting stability.
 
 ---
-*Last update: 2026-04-12 - Added concrete reporting and pipeline module paths.*
+*Last update: 2026-04-13 - Reporting reframed around analyzed items (no ranking).*

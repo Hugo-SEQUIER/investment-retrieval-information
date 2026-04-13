@@ -6,17 +6,14 @@
 ## Feature Docs
 | Feature | Path | Status |
 |---|---|---|
-| Social discovery | `docs/features/social-discovery/README.md` | active |
-| Mention extraction | `docs/features/mention-extraction/README.md` | active |
-| Company resolution | `docs/features/company-resolution/README.md` | active |
-| Company enrichment | `docs/features/company-enrichment/README.md` | active |
-| Ranking and scoring | `docs/features/ranking-scoring/README.md` | active |
+| Social fetch | `docs/features/social-discovery/README.md` | active |
+| Content filtering | `docs/features/content-filtering/README.md` | active |
+| Ticker and theme analysis | `docs/features/ticker-analysis/README.md` | active |
 | Digest reporting | `docs/features/digest-reporting/README.md` | active |
-| Frontend terminal monitor | `docs/features/frontend-terminal-monitor/README.md` | active |
-| API run control | `docs/features/api-run-control/README.md` | active |
+| Obsidian memory sync | `docs/features/obsidian-memory/README.md` | active |
 | Daily pipeline | `docs/features/daily-pipeline/README.md` | active |
 | Persistence run state | `docs/features/persistence-run-state/README.md` | active |
 
 ## Maintenance
-- Last reviewed: 2026-04-12
+- Last reviewed: 2026-04-13
 - Update trigger: feature scope or ownership changes

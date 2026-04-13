@@ -1,11 +1,65 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import logging
 from os import getenv
+from pathlib import Path
 from typing import Any
 
 from ai_equity_discovery.core.models import RawPost, utc_now
 from ai_equity_discovery.ingestion.base import SourceAdapter
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def resolve_scweet_db_path(now_utc: datetime | None = None) -> str:
+    if not _env_bool("SCWEET_DB_ROTATE_DAILY", False):
+        return getenv("SCWEET_DB_PATH", "scweet_state.db")
+
+    logger = logging.getLogger(__name__)
+    now_utc = now_utc or datetime.now(timezone.utc)
+    retention_days = max(1, _env_int("SCWEET_DB_RETENTION_DAYS", 7))
+    db_dir = Path(getenv("SCWEET_DB_DIR", "data/scweet"))
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    prefix = "scweet_"
+    filename = f"{prefix}{now_utc.date().isoformat()}.db"
+    keep_after = now_utc.date() - timedelta(days=retention_days)
+
+    for old_file in db_dir.glob(f"{prefix}*.db"):
+        stem = old_file.stem
+        if not stem.startswith(prefix):
+            continue
+        date_part = stem[len(prefix) :]
+        try:
+            file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if file_date <= keep_after:
+            try:
+                old_file.unlink(missing_ok=True)
+                logger.info("Scweet DB cleanup | removed=%s", old_file)
+            except OSError:
+                logger.warning("Scweet DB cleanup failed | file=%s", old_file)
+
+    resolved = str((db_dir / filename).as_posix())
+    logger.info("Scweet DB path | rotate_daily=true | db_path=%s", resolved)
+    return resolved
 
 
 class InMemorySourceAdapter(SourceAdapter):
@@ -31,6 +85,11 @@ class ScweetAdapter(SourceAdapter):
     def _parse_datetime(self, value: Any) -> datetime | None:
         if value is None:
             return None
+        if isinstance(value, (int, float)):
+            try:
+                return datetime.fromtimestamp(float(value), tz=timezone.utc)
+            except (TypeError, ValueError, OSError):
+                return None
         if isinstance(value, datetime):
             return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
@@ -45,7 +104,19 @@ class ScweetAdapter(SourceAdapter):
             parsed = datetime.fromisoformat(text)
             return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
         except ValueError:
-            return None
+            pass
+
+        for fmt in (
+            "%a %b %d %H:%M:%S %z %Y",
+            "%a %b %d %H:%M:%S %Y",
+        ):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+
+        return None
 
     def _as_records(self, payload: Any) -> list[dict[str, Any]]:
         if payload is None:
@@ -87,7 +158,7 @@ class ScweetAdapter(SourceAdapter):
         except ImportError as exc:
             raise RuntimeError("Scweet is not installed") from exc
 
-        db_path = getenv("SCWEET_DB_PATH", "scweet_state.db")
+        db_path = resolve_scweet_db_path()
         client = ScweetClient(auth_token=auth_token, db_path=db_path)
 
         posts: list[RawPost] = []

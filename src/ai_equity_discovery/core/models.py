@@ -13,6 +13,19 @@ def utc_now() -> datetime:
 
 
 @dataclass(slots=True)
+class DiscoveryAnnotation:
+    post_id: str
+    actionable: bool
+    ai_relevance: float
+    spam_likelihood: float
+    entity_hints: list[str]
+    reason: str
+    english_summary: str
+    provider: str
+    model: str
+
+
+@dataclass(slots=True)
 class RawPost:
     post_id: str
     source: str
@@ -23,6 +36,7 @@ class RawPost:
     published_at_utc: datetime
     ingested_at_utc: datetime
     engagement: dict[str, int] = field(default_factory=dict)
+    annotation: DiscoveryAnnotation | None = None
 
 
 @dataclass(slots=True)
@@ -36,66 +50,34 @@ class MentionCandidate:
 
 
 @dataclass(slots=True)
-class ResolvedCompany:
-    resolution_id: str
-    candidate_id: str
-    canonical_id: str
-    company_name: str | None
-    ticker: str | None
-    exchange: str | None
-    country: str | None
-    sector: str | None
-    industry: str | None
-    confidence: float
-    unresolved: bool
+class FilteredPost:
+    post_id: str
+    keep: bool
     reason_code: str
+    confidence: float
+    dedup_key: str
+    post: RawPost
+
+
+ClaimType = Literal["fact", "opinion", "rumor", "hypothesis"]
 
 
 @dataclass(slots=True)
-class EnrichedCompany:
-    enrichment_id: str
-    resolution_id: str
-    canonical_id: str
-    company_name: str | None
-    ticker: str | None
-    exchange: str | None
-    country: str | None
-    sector: str | None
-    industry: str | None
-    business_description: str | None
-    market_cap_usd: float | None
-    revenue_usd: float | None
-    source_urls: list[str]
-    fx_rate: float | None
-    fx_date: date | None
-    caveats: list[str] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class RankedIdea:
-    canonical_id: str
-    company_name: str
-    ticker: str
-    exchange: str
-    country: str
-    sector: str | None
-    industry: str | None
-    business_description: str | None
-    market_cap_usd: float | None
-    revenue_usd: float | None
-    score: float
-    mention_count: int
-    cross_source_count: int
-    ai_relevance_score: float
-    resolution_confidence: float
-    trend_reason: str
-    caveats: list[str] = field(default_factory=list)
+class AnalysisItem:
+    item_id: str
+    post_id: str
+    tickers: list[str]
+    themes: list[str]
+    claim_summary: str
+    claim_type: ClaimType
+    web_research_notes: str | None
+    follow_up_questions: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class DailyReport:
     run_id: str
     report_date_utc: date
-    top_ideas: list[RankedIdea]
+    analysis_items: list[AnalysisItem]
     themes: list[str]
     markdown: str

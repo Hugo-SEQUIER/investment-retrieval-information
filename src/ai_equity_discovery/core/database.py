@@ -304,6 +304,20 @@ class SQLiteStore:
         finally:
             conn.close()
 
+    def has_previous_runs(self, current_run_id: str | None = None) -> bool:
+        conn = self._connect()
+        try:
+            if current_run_id:
+                row = conn.execute(
+                    "SELECT 1 FROM runs WHERE run_id != ? LIMIT 1",
+                    (current_run_id,),
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT 1 FROM runs LIMIT 1").fetchone()
+            return row is not None
+        finally:
+            conn.close()
+
     def list_runs(self, limit: int = 20) -> list[dict[str, Any]]:
         conn = self._connect()
         try:

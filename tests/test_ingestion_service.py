@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from ai_equity_discovery.core.models import RawPost, utc_now
+from ai_equity_discovery.core.models import DiscoveryAnnotation, RawPost, utc_now
 from ai_equity_discovery.ingestion.base import SourceAdapter
 from ai_equity_discovery.ingestion.providers import InMemorySourceAdapter
 from ai_equity_discovery.ingestion.service import IngestionService
@@ -36,6 +36,46 @@ class SlowAdapter(SourceAdapter):
 
 
 class IngestionServiceTest(unittest.TestCase):
+    def test_collect_applies_discovery_annotations_in_shadow_mode(self) -> None:
+        post = RawPost(
+            post_id="x:42",
+            source="x:test",
+            source_type="x",
+            author="test",
+            url="https://x.com/test/status/42",
+            text="Nuevo contrato de IA para $NVDA",
+            published_at_utc=datetime(2026, 4, 12, 0, 0, 0, tzinfo=timezone.utc),
+            ingested_at_utc=utc_now(),
+            engagement={"likes": 10},
+        )
+
+        class StubAnnotator:
+            def annotate(self, posts: list[RawPost]) -> dict[str, DiscoveryAnnotation]:
+                return {
+                    posts[0].post_id: DiscoveryAnnotation(
+                        post_id=posts[0].post_id,
+                        actionable=True,
+                        ai_relevance=0.92,
+                        spam_likelihood=0.03,
+                        entity_hints=["NVDA", "NVIDIA"],
+                        reason="AI contract mention and ticker signal.",
+                        english_summary="The post highlights an AI-related NVIDIA contract.",
+                        provider="openrouter",
+                        model="qwen/qwen3.6-plus",
+                    )
+                }
+
+        service = IngestionService(
+            adapters=[InMemorySourceAdapter("x", [post])],
+            annotator=StubAnnotator(),
+        )
+
+        posts = service.collect()
+        self.assertEqual(len(posts), 1)
+        self.assertIsNotNone(posts[0].annotation)
+        assert posts[0].annotation is not None
+        self.assertEqual(posts[0].annotation.english_summary.split()[0], "The")
+
     def test_collect_keeps_working_if_one_adapter_fails(self) -> None:
         post = RawPost(
             post_id="x:1",

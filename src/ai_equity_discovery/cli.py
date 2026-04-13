@@ -1,34 +1,22 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+import logging
 from pathlib import Path
 
+from ai_equity_discovery.analysis.service import AnalysisService
 from ai_equity_discovery.core.config import AppConfig
 from ai_equity_discovery.core.database import SQLiteStore
 from ai_equity_discovery.core.env import load_env
-from ai_equity_discovery.core.loaders import (
-    load_company_registry,
-    load_enrichment_facts,
-    load_enrichment_source_urls,
-    load_fx_rates,
-    load_source_config,
-)
-from ai_equity_discovery.enrichment.service import (
-    CurrencyNormalizer,
-    EnrichmentService,
-    InMemoryEnrichmentProvider,
-    LayeredEnrichmentProvider,
-)
-from ai_equity_discovery.enrichment.web_provider import WebResearchEnrichmentProvider
+from ai_equity_discovery.core.loaders import load_source_config
 from ai_equity_discovery.extraction.service import ExtractionService
+from ai_equity_discovery.filtering.service import FilteringService
+from ai_equity_discovery.ingestion.deep_agent import OpenRouterDiscoveryAnnotator
 from ai_equity_discovery.ingestion.providers import RedditAdapter, ScweetAdapter
 from ai_equity_discovery.ingestion.service import IngestionService
+from ai_equity_discovery.memory.obsidian import ObsidianMemorySync
 from ai_equity_discovery.pipeline.daily import DailyPipeline
-from ai_equity_discovery.ranking.service import RankingService
 from ai_equity_discovery.reporting.markdown import MarkdownReporter
-from ai_equity_discovery.resolution.registry import CompanyRegistry
-from ai_equity_discovery.resolution.service import ResolutionService
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,34 +29,10 @@ def parse_args() -> argparse.Namespace:
         help="Path to sources JSON config",
     )
     parser.add_argument(
-        "--companies",
-        default="config/companies.example.json",
-        help="Path to company registry JSON",
-    )
-    parser.add_argument(
-        "--facts",
-        default="config/enrichment.example.json",
-        help="Path to enrichment facts JSON",
-    )
-    parser.add_argument(
         "--db", default="data/discovery.sqlite", help="SQLite database path"
     )
     parser.add_argument(
         "--output", default="reports/daily.md", help="Output markdown path"
-    )
-    parser.add_argument(
-        "--top-n", type=int, default=10, help="Top ideas to keep in report"
-    )
-    parser.add_argument(
-        "--fx",
-        default="config/fx.example.json",
-        help="Path to FX rates JSON",
-    )
-    parser.add_argument(
-        "--enrichment-mode",
-        choices=["fixture", "layered-web"],
-        default="fixture",
-        help="Enrichment provider mode",
     )
     parser.add_argument(
         "--run-id",
@@ -81,12 +45,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     load_env()
     args = parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+    )
+    app_config = AppConfig.from_env()
+    logger = logging.getLogger(__name__)
+    logger.info(
+        "Model routing | filter=%s | analysis=%s | reporting=%s",
+        app_config.discovery_agent.model_discovery or app_config.discovery_agent.model,
+        app_config.discovery_agent.model_analysis or app_config.discovery_agent.model,
+        app_config.discovery_agent.model_reporting or app_config.discovery_agent.model,
+    )
 
     source_cfg = load_source_config(args.sources)
-    registry = CompanyRegistry(load_company_registry(args.companies))
-    facts = load_enrichment_facts(args.facts)
-    source_urls_by_id = load_enrichment_source_urls(args.facts)
-    fx_rates = load_fx_rates(args.fx)
 
     db_path = Path(args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,41 +70,35 @@ def main() -> int:
         adapters=[
             ScweetAdapter(accounts=source_cfg.x_accounts),
             RedditAdapter(subreddits=source_cfg.reddit_subreddits),
-        ]
+        ],
+        annotator=OpenRouterDiscoveryAnnotator(
+            app_config.discovery_agent,
+            model=app_config.discovery_agent.model_discovery,
+        ),
     )
-
-    enrichment_provider = InMemoryEnrichmentProvider(facts_by_id=facts)
-    if args.enrichment_mode == "layered-web":
-        enrichment_provider = LayeredEnrichmentProvider(
-            primary=enrichment_provider,
-            fallback=WebResearchEnrichmentProvider(source_urls_by_id=source_urls_by_id),
-        )
 
     pipeline = DailyPipeline(
         config=AppConfig(
             x_accounts=source_cfg.x_accounts,
             reddit_subreddits=source_cfg.reddit_subreddits,
-            top_n=args.top_n,
+            bootstrap_lookback_days=app_config.bootstrap_lookback_days,
+            daily_lookback_days=app_config.daily_lookback_days,
+            discovery_agent=app_config.discovery_agent,
+            memory=app_config.memory,
         ),
         store=SQLiteStore(db_path),
         ingestion=ingestion_service,
-        extraction=ExtractionService(),
-        resolution=ResolutionService(registry),
-        enrichment=EnrichmentService(
-            provider=enrichment_provider,
-            normalizer=CurrencyNormalizer(
-                fx_rates_to_usd=fx_rates, fx_date=date.today()
-            ),
-        ),
-        ranking=RankingService(),
+        filtering=FilteringService(),
+        analysis=AnalysisService(extraction=ExtractionService()),
         reporter=MarkdownReporter(),
+        memory=ObsidianMemorySync(app_config.memory),
     )
 
     report = pipeline.run(run_id=args.run_id)
     output_path.write_text(report.markdown, encoding="utf-8")
 
     print(f"Run completed: {report.run_id}")
-    print(f"Top ideas: {len(report.top_ideas)}")
+    print(f"Analysis items: {len(report.analysis_items)}")
     print(f"Report: {output_path}")
 
     if ingestion_service.last_health:

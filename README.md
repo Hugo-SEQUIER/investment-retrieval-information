@@ -2,103 +2,119 @@
 
 Daily research pipeline for **AI-related public equities**.
 
-It discovers candidates from **X/Twitter** and **Reddit**, resolves companies, enriches facts from reputable sources, normalizes financials to **USD**, ranks ideas, and outputs a markdown digest.
+It fetches posts from **X/Twitter** and **Reddit**, filters low-signal noise,
+analyzes tickers/themes with agent support, generates concise markdown reports,
+and syncs research memory to Obsidian.
 
 ## Scope and Guardrails
 
 - Discovery and research only (no trading or execution).
 - Social media is discovery input, not factual truth.
-- Company facts are verified from reputable public sources.
-- User-facing market cap and revenue are always normalized to USD.
 - Pipeline stages stay strictly separated:
-  `discovery -> extraction -> resolution -> enrichment -> ranking -> reporting`.
+  `fetch -> filter -> analyze -> report -> memory`.
 
 ## Current Status
 
-- v1 pipeline and storage are implemented in Python.
-- v1.1 includes FastAPI run-monitoring endpoints and a Next.js terminal-style frontend.
-- Markdown is the canonical report output.
+- Foundation direction is set to a minimal Hermes-friendly flow:
+  `fetch -> filter -> analyze -> report -> memory`.
+- Runtime pipeline now follows the same stage model.
+- Markdown remains the canonical report output.
 
-## Quick Start (Pipeline)
+## How To Use This Project
+
+### 1) Install dependencies
 
 1) Install Python dependencies:
 
 ```bash
 python -m pip install -e .
-python -m pip install ".[api]"
 ```
 
-2) (Optional) install ingestion dependencies for live X/Reddit collection:
+Install live-ingestion dependencies for X/Reddit:
 
 ```bash
 python -m pip install ".[ingestion]"
 ```
 
-3) Configure credentials when using live ingestion:
+### 2) Configure `.env`
+
+Create a `.env` at repository root.
+
+Required for live Reddit ingestion:
 
 - `REDDIT_CLIENT_ID`
 - `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT` (optional)
 
-4) Run daily pipeline:
+Optional for X ingestion:
+
+- `TWITTER_AUTH_TOKEN` (or `SCWEET_AUTH_TOKEN`)
+- `SCWEET_DB_ROTATE_DAILY` (optional, `true` to use daily DB files)
+- `SCWEET_DB_DIR` (optional, default: `data/scweet` when rotation enabled)
+- `SCWEET_DB_RETENTION_DAYS` (optional, default: `7`)
+- `SCWEET_DB_PATH` (optional static path when rotation disabled)
+
+Note: DB rotation resets local scraper state only; provider-side X limits may still apply.
+
+Optional for agent-assisted filtering/analysis/reporting (OpenRouter):
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL` (global default model)
+- `OPENROUTER_MODEL_DISCOVERY` (cheap model for high-volume filtering)
+- `OPENROUTER_MODEL_REPORTING` (reserved for report synthesis routing)
+- `DISCOVERY_AGENT_ENABLED` (default: `true`; filtering/analyze assistant)
+- `AGENT_OUTPUT_LANGUAGE` (default: `en`)
+- `BOOTSTRAP_LOOKBACK_DAYS` (default: `7`; used on first run)
+- `DAILY_LOOKBACK_DAYS` (default: `1`; used on subsequent runs)
+
+Minimal example:
+
+```env
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=qwen/qwen3.6-plus
+OPENROUTER_MODEL_DISCOVERY=qwen/qwen2.5-7b-instruct
+DISCOVERY_AGENT_ENABLED=true
+AGENT_OUTPUT_LANGUAGE=en
+BOOTSTRAP_LOOKBACK_DAYS=7
+DAILY_LOOKBACK_DAYS=1
+REDDIT_CLIENT_ID=...
+REDDIT_CLIENT_SECRET=...
+```
+
+### 3) Run the pipeline (CLI)
+
+First run (bootstrap): collects up to last 7 days by default.
+Daily runs after that: collect last 1 day by default.
+Report lines focus on actionable signal summaries and concise ticker/theme
+analysis.
+
+Run command:
 
 ```bash
 $env:PYTHONPATH="src"; python -m ai_equity_discovery --db data/discovery.sqlite --output reports/daily.md
 ```
+
+CLI prints live stage progress logs. Target stage model is
+`fetch/filter/analyze/report/memory`.
 
 The command writes:
 - stage artifacts in SQLite
 - source health per run
 - markdown report output file
 
-## Start API (v1.1)
-
-```bash
-$env:PYTHONPATH="src"; python -m uvicorn ai_equity_discovery.api.app:app --host 0.0.0.0 --port 8000
-```
-
-## Start Frontend (v1.1)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Environment variable for frontend:
-
-- `NEXT_PUBLIC_API_BASE_URL` (default: `http://localhost:8000`)
-
-## API Endpoints (v1.1)
-
-- `POST /api/runs` - start run (single active-run policy)
-- `GET /api/runs` - list recent runs
-- `GET /api/runs/{run_id}` - run summary
-- `GET /api/runs/{run_id}/stages` - stage status timeline
-- `GET /api/runs/{run_id}/source-health` - per-source health
-- `GET /api/runs/{run_id}/report` - markdown report
-- `GET /api/config/sources` - read source config
-- `PUT /api/config/sources` - update source config (applies to future runs)
-
 ## Project Structure
 
 ```text
 src/ai_equity_discovery/
   core/            # config, models, serialization, sqlite storage
-  ingestion/       # X/Reddit adapters + parallel discovery collection
-  extraction/      # ticker/theme extraction
-  resolution/      # exchange:ticker company resolution
-  enrichment/      # facts providers, reliability policy, USD normalization
-  ranking/         # deterministic scoring and ranking
+  ingestion/       # X/Reddit adapters + parallel fetch collection
+  extraction/      # ticker/theme extraction helpers used by analysis
+  filtering/       # low-signal and dedup filtering stage
+  analysis/        # claim typing + ticker/theme analysis stage
   reporting/       # markdown report rendering
+  memory/          # Obsidian sync for research memory
   pipeline/        # daily orchestration with stage instrumentation
-  api/             # FastAPI routes, schemas, run launcher, config service
   cli.py           # pipeline entrypoint
-
-frontend/
-  app/page.tsx     # terminal-style monitor UI
-  components/      # workflow/source health/markdown/config panels
-  lib/api.ts       # backend client
 
 docs/
   feature-map.md
@@ -106,26 +122,23 @@ docs/
   features/*
 ```
 
-## LangChain Agents: What Are We Using?
+## Agent Notes
 
-Short answer: **no runtime LangChain agent graph is wired yet** in the current codebase.
-
-Today, orchestration is deterministic Python stage services (pipeline-first). The LangChain/LangGraph direction is still architectural intent for deeper agent-style orchestration later.
-
-Planned mapping when we introduce LangGraph:
-
-- Discovery subagents: X and Reddit collectors
-- Resolution/enrichment nodes: tool-driven factual verification
-- Ranking/reporting nodes: deterministic scoring + digest synthesis
+- Current pipeline orchestration remains deterministic by stage.
+- Hermes target model uses focused subagents:
+  fetcher -> cheap filter -> analyzer (+ web research) -> reporter -> memory writer.
+- Ranking, resolution, and enrichment are removed from target architecture.
 
 ## Example Output
 
 ```text
 AI EQUITY DISCOVERY - 2026-04-11
 
-Top names:
-1. NVIDIA Corporation (NVDA)
-   - Designs GPUs and AI computing platforms.
-   - Market cap: $2.1T
-   - Revenue: $130.0B
+Signals to review:
+1. NVDA - repeated AI data-center capex mentions across X and Reddit.
+   - Claim type: opinion + earnings expectation
+   - Follow-up: verify new capex guidance from primary sources
+
+Theme highlights:
+- AI data-center power bottlenecks mentioned by multiple operators.
 ```

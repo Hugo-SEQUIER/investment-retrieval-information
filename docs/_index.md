@@ -12,8 +12,6 @@
 | Feature map | `docs/feature-map.md` | core team | active |
 | Decision index | `docs/decision-index.md` | core team | active |
 | Feature docs | `docs/features/_index.md` | core team | active |
-| Frontend monitor feature | `docs/features/frontend-terminal-monitor/README.md` | core team | active |
-| API run control feature | `docs/features/api-run-control/README.md` | core team | active |
 
 ## Entry Points
 - Start here -> `README.md`

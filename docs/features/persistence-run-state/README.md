@@ -6,7 +6,7 @@
 - **Patterns**: append/update run metadata, stage-status lifecycle, JSON stage payload storage
 
 ## Purpose
-Persist run lifecycle and stage observability data used by the pipeline, CLI, and frontend monitor.
+Persist run lifecycle and stage observability data used by the pipeline and CLI.
 
 ## Core Tables
 - `runs`
@@ -14,6 +14,10 @@ Persist run lifecycle and stage observability data used by the pipeline, CLI, an
 - `stage_status`
 - `source_health`
 - `reports`
+
+## Hermes Foundation Note
+- Target pipeline adds a `memory` stage that writes to Obsidian.
+- SQLite remains the run observability store for pipeline status.
 
 ## Conventions
 - UTC timestamps for all persisted lifecycle fields.

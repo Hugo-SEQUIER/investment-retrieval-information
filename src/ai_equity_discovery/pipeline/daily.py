@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from datetime import date
+import logging
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 from ai_equity_discovery.core.config import AppConfig
 from ai_equity_discovery.core.database import SQLiteStore
 from ai_equity_discovery.core.models import DailyReport
-from ai_equity_discovery.enrichment.service import EnrichmentService
-from ai_equity_discovery.extraction.service import ExtractionService
+from ai_equity_discovery.analysis.service import AnalysisService
+from ai_equity_discovery.filtering.service import FilteringService
 from ai_equity_discovery.ingestion.service import IngestionService
-from ai_equity_discovery.ranking.service import RankingService
+from ai_equity_discovery.memory.obsidian import ObsidianMemorySync
 from ai_equity_discovery.reporting.markdown import MarkdownReporter
-from ai_equity_discovery.resolution.service import ResolutionService
 
 
 class DailyPipeline:
@@ -20,110 +20,100 @@ class DailyPipeline:
         config: AppConfig,
         store: SQLiteStore,
         ingestion: IngestionService,
-        extraction: ExtractionService,
-        resolution: ResolutionService,
-        enrichment: EnrichmentService,
-        ranking: RankingService,
+        filtering: FilteringService,
+        analysis: AnalysisService,
         reporter: MarkdownReporter,
+        memory: ObsidianMemorySync,
     ) -> None:
         self._config = config
         self._store = store
         self._ingestion = ingestion
-        self._extraction = extraction
-        self._resolution = resolution
-        self._enrichment = enrichment
-        self._ranking = ranking
+        self._filtering = filtering
+        self._analysis = analysis
         self._reporter = reporter
+        self._memory = memory
 
     def run(
         self, report_date_utc: date | None = None, run_id: str | None = None
     ) -> DailyReport:
+        logger = logging.getLogger(__name__)
         report_date_utc = report_date_utc or date.today()
         run_id = run_id or f"run-{report_date_utc.isoformat()}-{uuid4().hex[:8]}"
+        logger.info("Run started | run_id=%s | report_date=%s", run_id, report_date_utc)
         self._store.create_run(run_id)
         self._store.mark_run_started(run_id)
         current_stage: str | None = None
 
         try:
-            current_stage = "discovery"
-            self._store.mark_stage_started(run_id, "discovery")
-            posts = self._ingestion.collect()
+            current_stage = "fetch"
+            self._store.mark_stage_started(run_id, "fetch")
+            lookback_days = self._config.daily_lookback_days
+            if not self._store.has_previous_runs(current_run_id=run_id):
+                lookback_days = self._config.bootstrap_lookback_days
+
+            since_utc = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+            logger.info(
+                "Stage fetch started | lookback_days=%s | since_utc=%s",
+                lookback_days,
+                since_utc.isoformat(),
+            )
+            posts = self._ingestion.collect(since_utc=since_utc)
             self._store.save_source_health(run_id, self._ingestion.last_health)
             self._store.save_stage_records(
-                run_id, "discovery", [(post.post_id, post) for post in posts]
+                run_id, "fetch", [(post.post_id, post) for post in posts]
             )
             self._store.mark_stage_finished(
                 run_id,
-                "discovery",
+                "fetch",
                 status="success",
                 record_count=len(posts),
             )
+            logger.info("Stage fetch finished | posts=%s", len(posts))
 
-            current_stage = "extraction"
-            self._store.mark_stage_started(run_id, "extraction")
-            candidates = self._extraction.extract(posts)
+            current_stage = "filter"
+            self._store.mark_stage_started(run_id, "filter")
+            logger.info("Stage filter started")
+            filtered = self._filtering.filter(posts)
             self._store.save_stage_records(
                 run_id,
-                "extraction",
-                [(candidate.candidate_id, candidate) for candidate in candidates],
+                "filter",
+                [(item.post_id, item) for item in filtered],
             )
             self._store.mark_stage_finished(
                 run_id,
-                "extraction",
+                "filter",
                 status="success",
-                record_count=len(candidates),
+                record_count=len(filtered),
             )
+            logger.info("Stage filter finished | decisions=%s", len(filtered))
 
-            current_stage = "resolution"
-            self._store.mark_stage_started(run_id, "resolution")
-            resolved = self._resolution.resolve(candidates)
+            current_stage = "analyze"
+            self._store.mark_stage_started(run_id, "analyze")
+            logger.info("Stage analyze started")
+            analysis_items = self._analysis.analyze(filtered)
+            themes = self._analysis.themes(analysis_items)
             self._store.save_stage_records(
                 run_id,
-                "resolution",
-                [(item.resolution_id, item) for item in resolved],
+                "analyze",
+                [(item.item_id, item) for item in analysis_items],
             )
             self._store.mark_stage_finished(
                 run_id,
-                "resolution",
+                "analyze",
                 status="success",
-                record_count=len(resolved),
+                record_count=len(analysis_items),
+            )
+            logger.info(
+                "Stage analyze finished | analysis_items=%s", len(analysis_items)
             )
 
-            current_stage = "enrichment"
-            self._store.mark_stage_started(run_id, "enrichment")
-            enriched = self._enrichment.enrich(resolved)
-            self._store.save_stage_records(
-                run_id,
-                "enrichment",
-                [(item.enrichment_id, item) for item in enriched],
-            )
-            self._store.mark_stage_finished(
-                run_id,
-                "enrichment",
-                status="success",
-                record_count=len(enriched),
-            )
-
-            current_stage = "ranking"
-            self._store.mark_stage_started(run_id, "ranking")
-            ranked, themes = self._ranking.rank(posts, candidates, resolved, enriched)
-            top_ideas = ranked[: self._config.top_n]
-            self._store.save_stage_records(
-                run_id,
-                "ranking",
-                [(item.canonical_id, item) for item in top_ideas],
-            )
-            self._store.mark_stage_finished(
-                run_id,
-                "ranking",
-                status="success",
-                record_count=len(top_ideas),
-            )
-
-            current_stage = "reporting"
-            self._store.mark_stage_started(run_id, "reporting")
+            current_stage = "report"
+            self._store.mark_stage_started(run_id, "report")
+            logger.info("Stage report started")
             markdown = self._reporter.build(
-                report_date_utc=report_date_utc, top_ideas=top_ideas, themes=themes
+                report_date_utc=report_date_utc,
+                analysis_items=analysis_items,
+                themes=themes,
             )
             self._store.save_report(
                 run_id=run_id,
@@ -132,20 +122,51 @@ class DailyPipeline:
             )
             self._store.mark_stage_finished(
                 run_id,
-                "reporting",
+                "report",
                 status="success",
                 record_count=1,
             )
+            logger.info("Stage report finished")
+
+            current_stage = "memory"
+            self._store.mark_stage_started(run_id, "memory")
+            logger.info("Stage memory started")
+            memory_result = self._memory.sync(
+                report_date_utc=report_date_utc,
+                analysis_items=analysis_items,
+                markdown=markdown,
+            )
+            self._store.save_stage_records(
+                run_id,
+                "memory",
+                [
+                    (f"memory:{idx}", {"path": path})
+                    for idx, path in enumerate(memory_result.written_files)
+                ],
+            )
+            self._store.mark_stage_finished(
+                run_id,
+                "memory",
+                status="success",
+                record_count=len(memory_result.written_files),
+            )
+            if memory_result.warning:
+                logger.warning("Stage memory warning | %s", memory_result.warning)
+            logger.info(
+                "Stage memory finished | files=%s", len(memory_result.written_files)
+            )
 
             self._store.mark_run_finished(run_id, status="success")
+            logger.info("Run finished successfully | run_id=%s", run_id)
             return DailyReport(
                 run_id=run_id,
                 report_date_utc=report_date_utc,
-                top_ideas=top_ideas,
+                analysis_items=analysis_items,
                 themes=themes,
                 markdown=markdown,
             )
         except Exception as exc:
+            logger.exception("Run failed | run_id=%s | stage=%s", run_id, current_stage)
             if current_stage is not None:
                 self._store.mark_stage_finished(
                     run_id,

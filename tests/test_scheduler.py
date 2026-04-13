@@ -17,7 +17,7 @@ class SchedulerTest(unittest.TestCase):
     @patch("ai_equity_discovery.scheduler.subprocess.run")
     def test_run_pipeline_invokes_module_entrypoint(self, mock_run) -> None:
         mock_run.return_value.returncode = 0
-        code = run_pipeline(["--top-n", "3"])
+        code = run_pipeline(["--output", "reports/daily.md"])
         self.assertEqual(code, 0)
         called = mock_run.call_args.args[0]
         self.assertEqual(called[1:3], ["-m", "ai_equity_discovery"])

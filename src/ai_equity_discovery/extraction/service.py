@@ -5,7 +5,8 @@ import re
 from ai_equity_discovery.core.models import MentionCandidate, RawPost
 
 
-TICKER_PATTERN = re.compile(r"\$?[A-Z]{1,5}\b")
+CASHTAG_PATTERN = re.compile(r"\$([A-Za-z]{1,5})\b")
+UPPER_TICKER_PATTERN = re.compile(r"\b([A-Z]{1,5})\b")
 STOP_TICKERS = {
     "A",
     "AI",
@@ -15,6 +16,22 @@ STOP_TICKERS = {
     "FOR",
     "I",
     "IT",
+    "OF",
+    "IN",
+    "ON",
+    "AT",
+    "AS",
+    "BY",
+    "AN",
+    "OR",
+    "NOT",
+    "FROM",
+    "WITH",
+    "THIS",
+    "THAT",
+    "TODAY",
+    "BANK",
+    "KOREA",
     "THE",
     "TO",
 }
@@ -52,12 +69,21 @@ class ExtractionService:
 
     def _extract_tickers(self, text: str) -> list[str]:
         tickers: list[str] = []
-        for match in TICKER_PATTERN.findall(text.upper()):
-            ticker = match.lstrip("$")
+
+        for match in CASHTAG_PATTERN.findall(text):
+            ticker = match.upper()
             if ticker in STOP_TICKERS:
                 continue
             if ticker not in tickers:
                 tickers.append(ticker)
+
+        for match in UPPER_TICKER_PATTERN.findall(text):
+            ticker = match.strip()
+            if ticker in STOP_TICKERS:
+                continue
+            if ticker not in tickers:
+                tickers.append(ticker)
+
         return tickers
 
     def _extract_themes(self, text: str) -> list[str]:
