@@ -6,6 +6,7 @@
 | Feature | Product Scope | Backend | Frontend | Docs | Tests |
 |---|---|---|---|---|---|
 | Social fetch | Ingest curated X and Reddit sources daily | `src/ai_equity_discovery/ingestion/` | `N/A` | `docs/features/social-discovery/README.md` | `tests/test_pipeline.py` |
+| **Account management** | Dynamic watchlist for X accounts and subreddits | `src/ai_equity_discovery/core/accounts.py` | `N/A` | `docs/features/social-discovery/README.md` | `tests/test_pipeline.py` |
 | Content filtering | Drop low-signal/duplicate content before analysis | `src/ai_equity_discovery/filtering/` | `N/A` | `docs/features/content-filtering/README.md` | `tests/test_pipeline.py` |
 | Ticker and theme analysis | Analyze filtered posts into concise ticker/theme claims | `src/ai_equity_discovery/extraction/` | `N/A` | `docs/features/ticker-analysis/README.md` | `tests/test_pipeline.py` |
 | Daily digest reporting | Generate concise markdown summaries for review | `src/ai_equity_discovery/reporting/` | `N/A` | `docs/features/digest-reporting/README.md` | `tests/test_pipeline.py` |
@@ -18,5 +19,5 @@
 - Critical flows: Daily pipeline -> `docs/architecture/_index.md`
 
 ## Maintenance
-- Last reviewed: 2026-04-13
+- Last reviewed: 2026-04-14
 - Update trigger: feature added or changed

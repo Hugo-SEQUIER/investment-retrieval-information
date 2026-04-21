@@ -42,6 +42,9 @@ class DiscoveryAgentConfig:
     model_discovery: str = ""
     model_analysis: str = ""
     model_reporting: str = ""
+    # Stage-specific model overrides
+    model_resolution: str = ""   # RESOLUTION stage (formerly discovery/filter)
+    model_enrichment: str = ""    # ENRICHMENT stage (formerly reporting)
     base_url: str = "https://openrouter.ai/api/v1"
     timeout_seconds: float = 25.0
     max_retries: int = 1
@@ -79,6 +82,12 @@ class AppConfig:
                 ),
                 model_reporting=getenv(
                     "OPENROUTER_MODEL_REPORTING", getenv("OPENROUTER_MODEL", "")
+                ),
+                model_resolution=getenv(
+                    "OPENROUTER_MODEL_RESOLUTION", getenv("OPENROUTER_MODEL", "")
+                ),
+                model_enrichment=getenv(
+                    "OPENROUTER_MODEL_ENRICHMENT", getenv("OPENROUTER_MODEL", "")
                 ),
                 base_url=getenv(
                     "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"

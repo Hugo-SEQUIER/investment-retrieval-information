@@ -35,7 +35,7 @@ class AnnotationStats:
 class OpenRouterDiscoveryAnnotator:
     def __init__(self, config: DiscoveryAgentConfig, model: str | None = None) -> None:
         self._config = config
-        self._model = (model or config.model_discovery or config.model).strip()
+        self._model = (model or config.model_resolution or config.model_discovery or config.model).strip()
         self.last_stats = AnnotationStats()
 
     @property

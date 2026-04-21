@@ -395,3 +395,90 @@ class SQLiteStore:
             return dict(row) if row else None
         finally:
             conn.close()
+
+    def query_analysis_items(
+        self,
+        ticker: str | None = None,
+        theme: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """
+        Query analysis items from the most recent run(s), optionally filtered by
+        ticker symbol or theme keyword.
+        """
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                """
+                SELECT sr.payload_json, sr.created_at_utc
+                FROM stage_records sr
+                WHERE sr.stage_name = 'analysis'
+                  AND (
+                      ? = 1
+                      OR sr.run_id IN (
+                          SELECT run_id FROM runs
+                          WHERE status = 'success'
+                          ORDER BY finished_at_utc DESC
+                          LIMIT 5
+                      )
+                  )
+                ORDER BY sr.created_at_utc DESC
+                LIMIT ?
+                """,
+                (1 if (ticker or theme) else 1, limit),
+            ).fetchall()
+
+            items = []
+            for row in rows:
+                payload = json.loads(row["payload_json"])
+                if ticker and ticker.upper() not in [
+                    t.upper() for t in payload.get("tickers", [])
+                ]:
+                    continue
+                if theme:
+                    theme_lower = theme.lower()
+                    if theme_lower not in [
+                        t.lower() for t in payload.get("themes", [])
+                    ]:
+                        continue
+                items.append(payload)
+            return items
+        finally:
+            conn.close()
+
+    def get_latest_report(self) -> dict[str, Any] | None:
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                """
+                SELECT run_id, report_date_utc, markdown
+                FROM reports
+                WHERE run_id IN (
+                    SELECT run_id FROM runs WHERE status = 'success'
+                    ORDER BY finished_at_utc DESC LIMIT 1
+                )
+                """,
+                (),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_watched_accounts_summary(self) -> dict[str, Any]:
+        """Return a summary of recent runs and source health."""
+        conn = self._connect()
+        try:
+            runs = conn.execute(
+                """
+                SELECT run_id, created_at_utc, status, finished_at_utc
+                FROM runs
+                ORDER BY created_at_utc DESC
+                LIMIT 5
+                """,
+                (),
+            ).fetchall()
+            return {
+                "recent_runs": [dict(r) for r in runs],
+            }
+        finally:
+            conn.close()

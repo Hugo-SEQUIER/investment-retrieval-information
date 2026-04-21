@@ -76,11 +76,43 @@ class InMemorySourceAdapter(SourceAdapter):
 class ScweetAdapter(SourceAdapter):
     source_name = "x"
 
-    def __init__(self, accounts: list[str], limit_per_account: int = 20) -> None:
+    # Scweet exception classes that indicate a per-account rate limit
+    _RATE_LIMIT_EXCS = (
+        "daily_limit",
+        "rate_limit",
+        "rate limit",
+        "429",
+    )
+
+    def __init__(
+        self,
+        accounts: list[str],
+        limit_per_account: int = 20,
+        tokens: list[str] | None = None,
+    ) -> None:
         self._accounts = [
             account.lstrip("@").strip() for account in accounts if account.strip()
         ]
         self._limit_per_account = limit_per_account
+        self._tokens = tokens or []
+
+    def _tokens_from_env(self) -> list[str]:
+        """Resolve X auth tokens from environment."""
+        # Primary: comma-separated pool
+        pool_raw = getenv("TWITTER_AUTH_TOKENS", "").strip()
+        if pool_raw:
+            tokens = [t.strip() for t in pool_raw.split(",") if t.strip()]
+            if tokens:
+                return tokens
+        # Fallback: single token legacy var
+        single = getenv("TWITTER_AUTH_TOKEN") or getenv("SCWEET_AUTH_TOKEN", "")
+        if single:
+            return [single.strip()]
+        return []
+
+    def _is_rate_limit_error(self, exc: BaseException) -> bool:
+        msg = str(exc).lower()
+        return any(x in msg for x in self._RATE_LIMIT_EXCS)
 
     def _parse_datetime(self, value: Any) -> datetime | None:
         if value is None:
@@ -147,10 +179,11 @@ class ScweetAdapter(SourceAdapter):
         if not self._accounts:
             return []
 
-        auth_token = getenv("TWITTER_AUTH_TOKEN") or getenv("SCWEET_AUTH_TOKEN")
-        if not auth_token:
+        tokens = self._tokens or self._tokens_from_env()
+        if not tokens:
             raise RuntimeError(
-                "Missing X auth token. Set TWITTER_AUTH_TOKEN (or SCWEET_AUTH_TOKEN) in .env"
+                "Missing X auth token. Set TWITTER_AUTH_TOKENS (or "
+                "TWITTER_AUTH_TOKEN / SCWEET_AUTH_TOKEN) in .env"
             )
 
         try:
@@ -159,65 +192,113 @@ class ScweetAdapter(SourceAdapter):
             raise RuntimeError("Scweet is not installed") from exc
 
         db_path = resolve_scweet_db_path()
-        client = ScweetClient(auth_token=auth_token, db_path=db_path)
-
         posts: list[RawPost] = []
-        for account in self._accounts:
-            payload = client.get_profile_tweets(
-                [account], limit=self._limit_per_account
-            )
-            for record in self._as_records(payload):
-                tweet_id = (
-                    record.get("tweet_id") or record.get("id") or record.get("rest_id")
-                )
-                if not tweet_id:
-                    continue
 
-                published_at = self._parse_datetime(
-                    record.get("created_at")
-                    or record.get("createdAt")
-                    or record.get("date")
-                    or record.get("timestamp")
-                )
-                if published_at is None:
-                    continue
-                if since_utc is not None and published_at < since_utc:
-                    continue
+        for token_idx, auth_token in enumerate(tokens):
+            token_label = f"token#{token_idx + 1}"
+            logger = logging.getLogger(__name__)
+            logger.info("ScweetAdapter | trying %s for all accounts", token_label)
 
-                username = (
-                    record.get("username")
-                    or record.get("screen_name")
-                    or record.get("user")
-                    or account
-                )
-                text = (
-                    record.get("full_text")
-                    or record.get("text")
-                    or record.get("rawContent")
-                    or ""
-                )
+            try:
+                client = ScweetClient(auth_token=auth_token, db_path=db_path)
 
-                url = record.get("url") or record.get("permalink")
-                if not url:
-                    url = f"https://x.com/{username}/status/{tweet_id}"
+                for account in self._accounts:
+                    try:
+                        payload = client.get_profile_tweets(
+                            [account], limit=self._limit_per_account
+                        )
+                    except Exception as exc:
+                        if self._is_rate_limit_error(exc):
+                            logger.warning(
+                                "ScweetAdapter | %s hit rate-limit on @%s | %s",
+                                token_label,
+                                account,
+                                exc,
+                            )
+                            # Don't break — let it try the next token below
+                            raise
+                        raise
 
-                posts.append(
-                    RawPost(
-                        post_id=f"x:{tweet_id}",
-                        source=f"x:{account}",
-                        source_type="x",
-                        author=str(username),
-                        url=str(url),
-                        text=str(text),
-                        published_at_utc=published_at,
-                        ingested_at_utc=utc_now(),
-                        engagement={
-                            "likes": int(record.get("likes", 0) or 0),
-                            "retweets": int(record.get("retweets", 0) or 0),
-                            "replies": int(record.get("replies", 0) or 0),
-                        },
+                    for record in self._as_records(payload):
+                        tweet_id = (
+                            record.get("tweet_id")
+                            or record.get("id")
+                            or record.get("rest_id")
+                        )
+                        if not tweet_id:
+                            continue
+
+                        published_at = self._parse_datetime(
+                            record.get("created_at")
+                            or record.get("createdAt")
+                            or record.get("date")
+                            or record.get("timestamp")
+                        )
+                        if published_at is None:
+                            continue
+                        if since_utc is not None and published_at < since_utc:
+                            continue
+
+                        username = (
+                            record.get("username")
+                            or record.get("screen_name")
+                            or record.get("user")
+                            or account
+                        )
+                        text = (
+                            record.get("full_text")
+                            or record.get("text")
+                            or record.get("rawContent")
+                            or ""
+                        )
+
+                        url = record.get("url") or record.get("permalink")
+                        if not url:
+                            url = f"https://x.com/{username}/status/{tweet_id}"
+
+                        posts.append(
+                            RawPost(
+                                post_id=f"x:{tweet_id}",
+                                source=f"x:{account}",
+                                source_type="x",
+                                author=str(username),
+                                url=str(url),
+                                text=str(text),
+                                published_at_utc=published_at,
+                                ingested_at_utc=utc_now(),
+                                engagement={
+                                    "likes": int(record.get("likes", 0) or 0),
+                                    "retweets": int(record.get("retweets", 0) or 0),
+                                    "replies": int(record.get("replies", 0) or 0),
+                                },
+                            )
+                        )
+
+                # This token succeeded for all accounts — we're done
+                logger.info(
+                    "ScweetAdapter | %s succeeded for all %d accounts",
+                    token_label,
+                    len(self._accounts),
+                )
+                break
+
+            except Exception as exc:
+                if not self._is_rate_limit_error(exc):
+                    raise
+                if token_idx < len(tokens) - 1:
+                    logger.warning(
+                        "ScweetAdapter | %s exhausted, rotating to next token",
+                        token_label,
                     )
+                    continue
+                # Last token also rate-limited
+                logger.error(
+                    "ScweetAdapter | all %d tokens exhausted", len(tokens)
                 )
+                raise RuntimeError(
+                    f"All {len(tokens)} X auth tokens are rate-limited. "
+                    "Wait for daily reset or add more tokens via TWITTER_AUTH_TOKENS."
+                ) from exc
 
         return posts
 
